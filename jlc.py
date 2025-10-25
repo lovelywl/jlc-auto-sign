@@ -12,9 +12,17 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import os  # 读取环境变量
+
+# 全局变量用于收集总结日志
+in_summary = False
+summary_logs = []
 
 def log(msg):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+    full_msg = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
+    print(full_msg, flush=True)
+    if in_summary:
+        summary_logs.append(msg)  # 只收集纯消息，无时间戳
 
 def format_nickname(nickname):
     """格式化昵称，只显示第一个字和最后一个字，中间用星号代替"""
@@ -991,47 +999,40 @@ def execute_final_retry_for_failed_accounts(all_results, usernames, passwords, t
             is_final_retry=True
         )
         
-        # 如果最终重试成功，更新结果
-        if final_result['oshwhub_success'] and final_result['jindou_success']:
-            log(f"🎉 账号 {failed_acc['account_index']} - 重试成功！")
-            # 完全替换原结果
-            all_results[failed_acc['index']] = final_result
-        else:
-            # 部分成功的情况，只更新成功的部分
-            original_result = all_results[failed_acc['index']]
-            
-            # 更新开源平台结果
-            if final_result['oshwhub_success'] and not original_result['oshwhub_success']:
-                original_result['oshwhub_success'] = True
-                original_result['oshwhub_status'] = final_result['oshwhub_status']
-                original_result['initial_points'] = final_result['initial_points']
-                original_result['final_points'] = final_result['final_points']
-                original_result['points_reward'] = final_result['points_reward']
-                original_result['reward_results'] = final_result['reward_results']
-                log(f"✅ 账号 {failed_acc['account_index']} - 开源平台签到成功")
-            
-            # 更新金豆结果
-            if final_result['jindou_success'] and not original_result['jindou_success']:
-                original_result['jindou_success'] = True
-                original_result['jindou_status'] = final_result['jindou_status']
-                original_result['initial_jindou'] = final_result['initial_jindou']
-                original_result['final_jindou'] = final_result['final_jindou']
-                original_result['jindou_reward'] = final_result['jindou_reward']
-                original_result['has_jindou_reward'] = final_result['has_jindou_reward']
-                log(f"✅ 账号 {failed_acc['account_index']} - 金豆签到成功")
-            
-            # 更新其他信息
-            if original_result['nickname'] == '未知' and final_result['nickname'] != '未知':
-                original_result['nickname'] = final_result['nickname']
-            
-            if not original_result['token_extracted'] and final_result['token_extracted']:
-                original_result['token_extracted'] = final_result['token_extracted']
-            
-            if not original_result['secretkey_extracted'] and final_result['secretkey_extracted']:
-                original_result['secretkey_extracted'] = final_result['secretkey_extracted']
-            
-            original_result['is_final_retry'] = True
-            original_result['retry_count'] = failed_acc['previous_retry_count'] + 1
+        original_result = all_results[failed_acc['index']]
+        
+        # 更新开源平台结果
+        if final_result['oshwhub_success'] and not original_result['oshwhub_success']:
+            original_result['oshwhub_success'] = True
+            original_result['oshwhub_status'] = final_result['oshwhub_status']
+            original_result['initial_points'] = final_result['initial_points']
+            original_result['final_points'] = final_result['final_points']
+            original_result['points_reward'] = final_result['points_reward']
+            original_result['reward_results'] = final_result['reward_results']
+            log(f"✅ 账号 {failed_acc['account_index']} - 开源平台签到成功")
+        
+        # 更新金豆结果
+        if final_result['jindou_success'] and not original_result['jindou_success']:
+            original_result['jindou_success'] = True
+            original_result['jindou_status'] = final_result['jindou_status']
+            original_result['initial_jindou'] = final_result['initial_jindou']
+            original_result['final_jindou'] = final_result['final_jindou']
+            original_result['jindou_reward'] = final_result['jindou_reward']
+            original_result['has_jindou_reward'] = final_result['has_jindou_reward']
+            log(f"✅ 账号 {failed_acc['account_index']} - 金豆签到成功")
+        
+        # 更新其他信息
+        if original_result['nickname'] == '未知' and final_result['nickname'] != '未知':
+            original_result['nickname'] = final_result['nickname']
+        
+        if not original_result['token_extracted'] and final_result['token_extracted']:
+            original_result['token_extracted'] = final_result['token_extracted']
+        
+        if not original_result['secretkey_extracted'] and final_result['secretkey_extracted']:
+            original_result['secretkey_extracted'] = final_result['secretkey_extracted']
+        
+        original_result['is_final_retry'] = True
+        original_result['retry_count'] = failed_acc['previous_retry_count'] + 1
         
         # 如果不是最后一个账号，等待一段时间
         if failed_acc != failed_accounts[-1]:
@@ -1042,7 +1043,93 @@ def execute_final_retry_for_failed_accounts(all_results, usernames, passwords, t
     log("✅ 最终重试完成")
     return all_results
 
+# 推送函数
+def push_summary():
+    if not summary_logs:
+        return
+    
+    title = "嘉立创签到总结"
+    text = "\n".join(summary_logs)
+    full_text = f"{title}\n{text}"  # 有些平台不需要单独标题
+    
+    # Telegram
+    telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    if telegram_bot_token and telegram_chat_id:
+        try:
+            url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"
+            params = {'chat_id': telegram_chat_id, 'text': full_text}
+            requests.get(url, params=params)
+        except:
+            pass  # 静默失败
+
+    # 企业微信 (WeChat Work)
+    wechat_webhook_key = os.getenv('WECHAT_WEBHOOK_KEY')
+    if wechat_webhook_key:
+        try:
+            if wechat_webhook_key.startswith('https://'):
+                url = wechat_webhook_key
+            else:
+                url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={wechat_webhook_key}"
+            body = {"msgtype": "text", "text": {"content": full_text}}
+            requests.post(url, json=body)
+        except:
+            pass
+
+    # 钉钉 (DingTalk)
+    dingtalk_webhook = os.getenv('DINGTALK_WEBHOOK')
+    if dingtalk_webhook:
+        try:
+            if dingtalk_webhook.startswith('https://'):
+                url = dingtalk_webhook
+            else:
+                url = f"https://oapi.dingtalk.com/robot/send?access_token={dingtalk_webhook}"
+            body = {"msgtype": "text", "text": {"content": full_text}}
+            requests.post(url, json=body)
+        except:
+            pass
+
+    # PushPlus
+    pushplus_token = os.getenv('PUSHPLUS_TOKEN')
+    if pushplus_token:
+        try:
+            url = "http://www.pushplus.plus/send"
+            body = {"token": pushplus_token, "title": title, "content": text}
+            requests.post(url, json=body)
+        except:
+            pass
+
+    # Server酱
+    serverchan_sckey = os.getenv('SERVERCHAN_SCKEY')
+    if serverchan_sckey:
+        try:
+            url = f"https://sctapi.ftqq.com/{serverchan_sckey}.send"
+            body = {"title": title, "desp": text}
+            requests.post(url, data=body)
+        except:
+            pass
+
+    # 酷推 (CoolPush)
+    coolpush_skey = os.getenv('COOLPUSH_SKEY')
+    if coolpush_skey:
+        try:
+            url = f"https://push.xuthus.cc/send/{coolpush_skey}?c={full_text}"
+            requests.get(url)
+        except:
+            pass
+
+    # 自定义API
+    custom_webhook = os.getenv('CUSTOM_WEBHOOK')
+    if custom_webhook:
+        try:
+            body = {"title": title, "content": text}
+            requests.post(custom_webhook, json=body)
+        except:
+            pass
+
 def main():
+    global in_summary
+    
     if len(sys.argv) < 3:
         print("用法: python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3... [失败退出标志]")
         print("示例: python jlc.py user1,user2,user3 pwd1,pwd2,pwd3")
@@ -1088,6 +1175,7 @@ def main():
     
     # 输出详细总结
     log("=" * 70)
+    in_summary = True  # 启用总结收集
     log("📊 详细签到任务完成总结")
     log("=" * 70)
     
@@ -1189,6 +1277,9 @@ def main():
         log("  🎉 所有账号全部签到成功!")
     
     log("=" * 70)
+    
+    # 推送总结
+    push_summary()
     
     # 根据失败退出标志决定退出码
     if enable_failure_exit and failed_accounts:

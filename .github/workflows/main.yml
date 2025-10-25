@@ -3,13 +3,23 @@ name: 嘉立创自动签到主脚本
 on:
   workflow_dispatch:  # 手动触发
   schedule:
-    - cron: '0 02 * * *'  # 每天北京时间10点运行
+    - cron: '0 01 * * *'  # 每天北京时间9点运行
     # 在这里设置UTC运行时间，如果不知道怎么配置可以问AI
     # 实际运行时间会比设置时间延迟一小时以内，取决于当时GitHub资源占用情况。
 
 jobs:
   running:
     runs-on: ubuntu-22.04
+
+    env: #注入推送相关的环境变量（从secrets读取）
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
+      DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      SERVERCHAN_SCKEY: ${{ secrets.SERVERCHAN_SCKEY }}
+      COOLPUSH_SKEY: ${{ secrets.COOLPUSH_SKEY }}
+      CUSTOM_WEBHOOK: ${{ secrets.CUSTOM_WEBHOOK }}
 
     steps:
       - name: '检出代码'
