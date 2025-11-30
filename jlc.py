@@ -479,7 +479,7 @@ def click_gift_buttons(driver, account_index):
             try:
                 monthly_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="月度好礼"]')
                 monthly_gift.click()
-                log(f"账号 {account_index} - ✅ 检测到今天是月底，成功点击月度好礼")          
+                log(f"账号 {account_index} - ✅ 检测到今天是月底，成功点击月度好礼～")          
                 
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
                 reward_result = capture_reward_info(driver, account_index, "月度")
